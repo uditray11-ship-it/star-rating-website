@@ -1,9 +1,31 @@
 require('dotenv').config();
+const fs = require('fs/promises');
+const path = require('path');
+const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 const db = require('./config/db');
 
+async function ensureSchema() {
+  const seedSql = await fs.readFile(path.join(__dirname, 'seed.sql'), 'utf8');
+  const connection = await mysql.createConnection({
+    host: process.env.DB_HOST,
+    port: Number(process.env.DB_PORT || 3306),
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    multipleStatements: true
+  });
+
+  try {
+    await connection.query(seedSql);
+  } finally {
+    await connection.end();
+  }
+}
+
 async function seed() {
   try {
+    await ensureSchema();
+
     const adminPassword = await bcrypt.hash('Admin@123', 10);
     const ownerPassword = await bcrypt.hash('Owner@123', 10);
 
@@ -28,6 +50,7 @@ async function seed() {
     console.log('Owner: owner@example.com / Owner@123');
   } catch (error) {
     console.error(error);
+    process.exitCode = 1;
   } finally {
     await db.end();
   }
